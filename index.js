@@ -73,8 +73,9 @@ async function checkAvailability(args) {
 
         return `On ${args.date}, I have these times available in Miami: ${formattedSlots}. Which one works best for you?`;
     } catch (error) {
-        console.error('Availability Error:', error.response?.data || error.message);
-        throw new Error('Could not fetch availability.');
+        const detail = error.response?.data?.message || error.message;
+        console.error('Availability Error:', detail);
+        throw new Error(`Calendly Error: ${detail}`);
     }
 }
 
@@ -96,10 +97,16 @@ async function bookAppointment(args) {
 
         return `Perfect! I've booked your ${type} appointment for ${new Date(args.startTime).toLocaleString('en-US', { timeZone: TIMEZONE })}. You'll receive a confirmation email at ${args.email} shortly.`;
     } catch (error) {
-        console.error('Booking Error:', error.response?.data || error.message);
-        throw new Error('Booking failed. The slot might have been taken or the details are invalid.');
+        const detail = error.response?.data?.message || error.message;
+        console.error('Booking Error:', detail);
+        throw new Error(`Calendly Booking Error: ${detail}`);
     }
 }
+
+// --- Root Route for Verification ---
+app.get('/', (req, res) => {
+    res.send('<h1>🚀 Vapi-Calendly Bridge is Online!</h1><p>The API is ready for Vapi POST requests.</p>');
+});
 
 // --- Vapi Webhook Endpoint ---
 app.post('/vapi-tool', async (req, res) => {
