@@ -16,14 +16,14 @@ const EVENT_TYPES = {
         uri: 'https://api.calendly.com/event_types/9625eb4b-899a-4ef7-912a-a1d68fc79708',
         location: {
             kind: 'physical',
-            location: ' 2125 Biscayne Blvd, Suite 226, Edgewater, Miami, FL 33137'
+            location: '2125 Biscayne Blvd, Suite 226, Edgewater, Miami, FL 33137'
         }
     },
     renewal: {
         uri: 'https://api.calendly.com/event_types/bc03b534-ca6b-4895-86cf-3a3a8575d942',
         location: {
             kind: 'physical',
-            location: ' 2125 Biscayne Blvd, Suite 226, Edgewater, Miami, FL 33137'
+            location: '2125 Biscayne Blvd, Suite 226, Edgewater, Miami, FL 33137'
         }
     }
 };
@@ -64,14 +64,15 @@ async function checkAvailability(args) {
         }
 
         const formattedSlots = slots.slice(0, 5).map(s => {
-            return new Date(s).toLocaleTimeString('en-US', {
+            const localTime = new Date(s).toLocaleTimeString('en-US', {
                 hour: '2-digit',
                 minute: '2-digit',
                 timeZone: TIMEZONE
             });
+            return `${localTime} (id: ${s})`;
         }).join(', ');
 
-        return `On ${args.date}, I have these times available in Miami: ${formattedSlots}. Which one works best for you?`;
+        return `On ${args.date}, I have these times available in Miami: ${formattedSlots}. Just tell me the time you want or use the ID in parentheses.`;
     } catch (error) {
         const detail = error.response?.data?.message || error.message;
         console.error('Availability Error:', detail);
@@ -92,14 +93,19 @@ async function bookAppointment(args) {
                 name: args.name,
                 timezone: TIMEZONE
             },
-            location: eventType.location
+            // Added phone number for text notifications
+            text_reminders_number: args.phone,
+            location: {
+                kind: 'physical',
+                location: '2125 Biscayne Blvd, Suite 226, Edgewater, Miami, FL 33137'
+            }
         });
 
-        return `Perfect! I've booked your ${type} appointment for ${new Date(args.startTime).toLocaleString('en-US', { timeZone: TIMEZONE })}. You'll receive a confirmation email at ${args.email} shortly.`;
+        return `Perfect! I've booked your ${type} appointment for ${new Date(args.startTime).toLocaleString('en-US', { timeZone: TIMEZONE })}. You'll receive a confirmation email and text message at ${args.phone} shortly.`;
     } catch (error) {
-        const detail = error.response?.data?.message || error.message;
+        const detail = error.response?.data ? JSON.stringify(error.response.data) : error.message;
         console.error('Booking Error:', detail);
-        throw new Error(`Calendly Booking Error: ${detail}`);
+        throw new Error(`Calendly Deep Error: ${detail}`);
     }
 }
 
