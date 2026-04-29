@@ -68,7 +68,8 @@ async function checkAvailability(args) {
     }
 
     try {
-        console.log(`Checking availability from ${start.toISOString()} to ${end.toISOString()}`);
+        console.log(`Checking Calendly for: ${eventType.uri} from ${start.toISOString()} to ${end.toISOString()}`);
+        
         const response = await calendly.get('/event_type_available_times', {
             params: {
                 event_type: eventType.uri,
@@ -85,7 +86,6 @@ async function checkAvailability(args) {
             return `I checked our schedule but don't see any open slots for those dates. Would you like to check another week?`;
         }
 
-        // Format slots for the AI to read back to the caller
         const formattedSlots = slots.slice(0, 6).map(s => {
             const d = new Date(s);
             const dateStr = d.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric', timeZone: TIMEZONE });
@@ -93,11 +93,11 @@ async function checkAvailability(args) {
             return `${dateStr} at ${timeStr} (ID: ${s})`;
         }).join('\n');
 
-        return `I found these openings:\n${formattedSlots}\n\nWhich one of these works for you?`;
+        return `I found these openings:\n${formattedSlots}\n\nWhich one works for you?`;
     } catch (error) {
-        const detail = error.response?.data?.message || error.message;
-        console.error('Availability Error:', detail);
-        throw new Error(`Calendly Error: ${detail}`);
+        const detail = error.response?.data ? JSON.stringify(error.response.data) : error.message;
+        console.error('Availability Error Detail:', detail);
+        return `Error: Calendly Error: ${detail}`;
     }
 }
 
