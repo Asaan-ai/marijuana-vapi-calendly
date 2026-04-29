@@ -42,16 +42,24 @@ async function checkAvailability(args) {
     const type = args.type === 'renewal' ? 'renewal' : 'new';
     const eventType = EVENT_TYPES[type];
 
-    // Format date for Calendly (ensure it covers the whole day)
-    const startTime = `${args.date}T00:00:00Z`;
-    const endTime = `${args.date}T23:59:59Z`;
+    // If a specific date is provided, check that day. 
+    // If not (e.g. "this week"), check the next 7 days.
+    const start = args.date ? new Date(args.date) : new Date();
+    const end = args.date ? new Date(args.date) : new Date();
+    
+    if (args.date) {
+        end.setHours(23, 59, 59);
+    } else {
+        end.setDate(end.getDate() + 7); // Check 7 days ahead
+        end.setHours(23, 59, 59);
+    }
 
     try {
         const response = await calendly.get('/event_type_available_times', {
             params: {
                 event_type: eventType.uri,
-                start_time: startTime,
-                end_time: endTime
+                start_time: start.toISOString(),
+                end_time: end.toISOString()
             }
         });
 
@@ -60,19 +68,18 @@ async function checkAvailability(args) {
             .map(slot => slot.start_time);
 
         if (slots.length === 0) {
-            return `I'm sorry, there are no available slots for ${args.date}. Would you like to check another day?`;
+            return `I don't see any open slots for those dates. Would you like to check a different week or month?`;
         }
 
-        const formattedSlots = slots.slice(0, 5).map(s => {
-            const localTime = new Date(s).toLocaleTimeString('en-US', {
-                hour: '2-digit',
-                minute: '2-digit',
-                timeZone: TIMEZONE
-            });
-            return `${localTime} (id: ${s})`;
+        // Group slots by date for a better response
+        const formattedSlots = slots.slice(0, 6).map(s => {
+            const d = new Date(s);
+            const dateStr = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: TIMEZONE });
+            const timeStr = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: TIMEZONE });
+            return `${dateStr} at ${timeStr}`;
         }).join(', ');
 
-        return `On ${args.date}, I have these times available in Miami: ${formattedSlots}. Just tell me the time you want or use the ID in parentheses.`;
+        return `I have a few openings: ${formattedSlots}. Do any of those work for you?`;
     } catch (error) {
         const detail = error.response?.data?.message || error.message;
         console.error('Availability Error:', detail);
