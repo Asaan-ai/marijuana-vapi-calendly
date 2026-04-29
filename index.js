@@ -42,19 +42,33 @@ async function checkAvailability(args) {
     const type = args.type === 'renewal' ? 'renewal' : 'new';
     const eventType = EVENT_TYPES[type];
 
-    // If a specific date is provided, check that day. 
-    // If not (e.g. "this week"), check the next 7 days.
-    const start = args.date ? new Date(args.date) : new Date();
-    const end = args.date ? new Date(args.date) : new Date();
-    
-    if (args.date) {
-        end.setHours(23, 59, 59);
+    let start = new Date();
+    let end = new Date();
+
+    // 1. Add a 5-minute buffer to 'start' so it's never in the past for Calendly
+    start.setMinutes(start.getMinutes() + 5);
+
+    // 2. Handle the date input
+    if (args.date && !args.date.includes('week') && !args.date.includes('month')) {
+        // AI sent a specific date string
+        const parsedDate = new Date(args.date);
+        if (!isNaN(parsedDate)) {
+            start = parsedDate;
+            if (start < new Date()) {
+                start = new Date();
+                start.setMinutes(start.getMinutes() + 5);
+            }
+            end = new Date(args.date);
+            end.setHours(23, 59, 59, 999);
+        }
     } else {
-        end.setDate(end.getDate() + 7); // Check 7 days ahead
-        end.setHours(23, 59, 59);
+        // AI sent nothing or "this week" -> Check next 7 days
+        end.setDate(end.getDate() + 7);
+        end.setHours(23, 59, 59, 999);
     }
 
     try {
+        console.log(`Checking availability from ${start.toISOString()} to ${end.toISOString()}`);
         const response = await calendly.get('/event_type_available_times', {
             params: {
                 event_type: eventType.uri,
@@ -68,18 +82,18 @@ async function checkAvailability(args) {
             .map(slot => slot.start_time);
 
         if (slots.length === 0) {
-            return `I don't see any open slots for those dates. Would you like to check a different week or month?`;
+            return `I checked our schedule but don't see any open slots for those dates. Would you like to check another week?`;
         }
 
-        // Group slots by date for a better response
+        // Format slots for the AI to read back to the caller
         const formattedSlots = slots.slice(0, 6).map(s => {
             const d = new Date(s);
-            const dateStr = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: TIMEZONE });
+            const dateStr = d.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric', timeZone: TIMEZONE });
             const timeStr = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: TIMEZONE });
-            return `${dateStr} at ${timeStr}`;
-        }).join(', ');
+            return `${dateStr} at ${timeStr} (ID: ${s})`;
+        }).join('\n');
 
-        return `I have a few openings: ${formattedSlots}. Do any of those work for you?`;
+        return `I found these openings:\n${formattedSlots}\n\nWhich one of these works for you?`;
     } catch (error) {
         const detail = error.response?.data?.message || error.message;
         console.error('Availability Error:', detail);
